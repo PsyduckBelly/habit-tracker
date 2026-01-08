@@ -1,6 +1,6 @@
 import { HabitCompletion, Habit } from '../types';
 import { getMonthStart, getMonthEnd, formatDate } from './dateUtils';
-import { isWithinInterval, parseISO, eachWeekOfInterval, startOfWeek, endOfWeek, subDays, format } from 'date-fns';
+import { isWithinInterval, parseISO, eachWeekOfInterval, startOfWeek, subDays, format } from 'date-fns';
 
 export const getCompletionsForMonth = (
   completions: HabitCompletion[],
@@ -90,9 +90,8 @@ export const getProgressPercentage = (
     // Calculate based on days, not full weeks
     // Count days from habitStart to actualEnd
     const daysDiff = Math.ceil((actualEnd.getTime() - habitStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    const weeksCount = Math.ceil(daysDiff / 7);
     
-    // Calculate goal: weeksCount * goalPerWeek, but prorated for partial weeks
+    // Calculate goal: prorated for partial weeks
     const fullWeeks = Math.floor(daysDiff / 7);
     const remainingDays = daysDiff % 7;
     const proratedGoal = (fullWeeks * habit.goalPerWeek) + 

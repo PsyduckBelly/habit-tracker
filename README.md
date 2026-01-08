@@ -2,6 +2,8 @@
 
 A beautiful and feature-rich habit tracking application to help you build better daily routines.
 
+🌐 **Live Demo**: [https://psyduckbelly.github.io/habit-tracker/](https://psyduckbelly.github.io/habit-tracker/)
+
 ## 🎨 Showcase
 
 Visit `/showcase` to see a beautiful showcase page perfect for:

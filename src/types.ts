@@ -24,3 +24,17 @@ export interface AppData {
   moods: MoodEntry[];
 }
 
+export interface Workspace {
+  id: string;
+  name: string;
+  createdBy: string; // email
+  createdAt: string;
+  members: string[]; // emails
+  isPublic: boolean;
+}
+
+export interface User {
+  email: string;
+  currentWorkspaceId: string | null;
+}
+

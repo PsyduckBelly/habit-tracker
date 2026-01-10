@@ -19,6 +19,9 @@ Visit `/showcase` to see a beautiful showcase page perfect for:
 - 🔥 **Streak Tracking** - Weekly streak calculation to motivate consistency
 - 🎯 **Goal Achievements** - Horizontal bar charts showing completion rates for each habit
 - 💾 **Data Export/Import** - Backup and restore data in JSON format
+- ☁️ **Cloud Sync & Sharing** - Optional Supabase integration for cloud storage and workspace sharing (like Notion)
+- 👥 **Workspace Collaboration** - Create workspaces and invite others to track habits together
+- 🔐 **Email Magic Link Auth** - Simple, passwordless authentication
 - 📱 **Responsive Design** - Perfect support for desktop and mobile devices
 - 🎨 **Notion-style UI** - Clean, elegant design aesthetic
 - ⚡ **Dynamic Progress Calculation** - Progress based on actual start date, more accurate
@@ -41,6 +44,17 @@ npm run dev
 The app will start at `http://localhost:5173`
 
 Visit `http://localhost:5173/showcase` to see the showcase page
+
+### Cloud Sync Setup (Optional)
+
+To enable cloud sync and workspace sharing:
+
+1. Create a free account at [Supabase](https://supabase.com)
+2. Create a new project
+3. Copy `.env.example` to `.env` and add your Supabase credentials
+4. Follow the detailed setup guide in [SUPABASE_SETUP.md](./SUPABASE_SETUP.md)
+
+**Note**: The app works perfectly fine without Supabase - it will use local storage by default. Cloud sync is completely optional!
 
 ### Build for Production
 
@@ -65,7 +79,8 @@ npm run preview
 - **Recharts** - Chart library
 - **date-fns** - Date utilities
 - **React Router** - Routing
-- **LocalStorage** - Data persistence
+- **LocalStorage** - Local data persistence
+- **Supabase** (Optional) - Cloud sync and workspace sharing
 
 ## 📦 Project Structure
 
@@ -100,6 +115,8 @@ habit_tracker/
 
 ## 🎯 Usage
 
+### Basic Usage
+
 1. **Add Habits** - Click the "+ Add Habit" button, enter a habit name, set weekly goal, and choose a color
 2. **Mark Completion** - Click the checkbox for the corresponding date in the calendar grid
 3. **View Statistics** - Top section shows habit count, completions, and overall progress
@@ -107,6 +124,17 @@ habit_tracker/
 5. **Switch Months** - Use navigation buttons to view different months
 6. **View Details** - Click on a habit name to see detailed statistics and charts
 7. **Export/Import** - Backup your data or restore from a previous backup
+
+### Cloud Sync & Sharing (Optional)
+
+1. **Sign In** - Click "Sign In" and enter your email address
+2. **Magic Link** - Check your email and click the magic link to sign in
+3. **Create Workspace** - Click "Workspace" → "Create Workspace" to create a shared workspace
+4. **Invite Others** - Share the workspace ID or invite link with others
+5. **Join Workspace** - Others can join using "Join Workspace" and entering the workspace ID
+6. **Real-time Sync** - All members see updates in real-time!
+
+**Note**: Without Supabase setup, the app works in local-only mode. All data is stored in your browser.
 
 ## 🌐 Deployment
 

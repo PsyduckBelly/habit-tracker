@@ -1,9 +1,13 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { AppData, Habit } from './types';
-import { loadData, addHabit, deleteHabit, updateHabit, exportData, importData } from './utils/storage';
+import { loadData, addHabit, deleteHabit, updateHabit, exportData, importData, saveData } from './utils/storage';
+import { supabase, isSupabaseConfigured } from './utils/supabase';
+import { loadWorkspaceData, saveWorkspaceData, subscribeToWorkspaceData } from './utils/cloudStorage';
 import HabitForm from './components/HabitForm';
 import HabitDetail from './components/HabitDetail';
+import LoginModal from './components/LoginModal';
+import WorkspaceManager from './components/WorkspaceManager';
 import SummaryStats from './components/SummaryStats';
 import HabitGrid from './components/HabitGrid';
 import ProgressChart from './components/ProgressChart';
@@ -19,19 +23,119 @@ function App() {
   const [editingHabit, setEditingHabit] = useState<Habit | undefined>(undefined);
   const [viewingHabit, setViewingHabit] = useState<Habit | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Cloud sync state
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string | null>(null);
+  const [showLogin, setShowLogin] = useState(false);
+  const [showWorkspaceManager, setShowWorkspaceManager] = useState(false);
+  const [isCloudMode, setIsCloudMode] = useState(false);
+
+  const loadCloudData = async (workspaceId: string) => {
+    const cloudData = await loadWorkspaceData(workspaceId);
+    if (cloudData) {
+      setData(cloudData);
+      saveData(cloudData); // Backup to localStorage
+    }
+  };
+
+  useEffect(() => {
+    // Check if user is logged in
+    if (isSupabaseConfigured()) {
+      try {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session?.user?.email) {
+            setUserEmail(session.user.email);
+            setIsCloudMode(true);
+            // Load workspace from localStorage
+            const savedWorkspaceId = localStorage.getItem('currentWorkspaceId');
+            if (savedWorkspaceId) {
+              setCurrentWorkspaceId(savedWorkspaceId);
+              loadCloudData(savedWorkspaceId);
+            } else {
+              setShowWorkspaceManager(true);
+            }
+          } else {
+            // Check for auth callback
+            const hashParams = new URLSearchParams(window.location.hash.substring(1));
+            if (hashParams.get('access_token')) {
+              // User just logged in via magic link
+              supabase.auth.getSession().then(({ data: { session } }) => {
+                if (session?.user?.email) {
+                  setUserEmail(session.user.email);
+                  setIsCloudMode(true);
+                  setShowWorkspaceManager(true);
+                  // Clean up URL
+                  window.history.replaceState({}, document.title, window.location.pathname);
+                }
+              });
+            }
+          }
+        }).catch((error) => {
+          console.error('Error checking session:', error);
+        });
+
+        // Listen for auth changes
+        supabase.auth.onAuthStateChange((_event, session) => {
+          if (session?.user?.email) {
+            setUserEmail(session.user.email);
+            setIsCloudMode(true);
+          } else {
+            setUserEmail(null);
+            setIsCloudMode(false);
+            setCurrentWorkspaceId(null);
+            localStorage.removeItem('currentWorkspaceId');
+          }
+        });
+      } catch (error) {
+        console.error('Supabase initialization error:', error);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    // Subscribe to workspace changes in cloud mode
+    if (isCloudMode && currentWorkspaceId) {
+      const subscription = subscribeToWorkspaceData(currentWorkspaceId, (newData) => {
+        setData(newData);
+        // Also save to localStorage as backup
+        saveData(newData);
+      });
+
+      return () => {
+        subscription.unsubscribe();
+      };
+    }
+  }, [currentWorkspaceId, isCloudMode]);
 
   const refreshData = () => {
-    setData(loadData());
+    if (isCloudMode && currentWorkspaceId) {
+      loadCloudData(currentWorkspaceId);
+    } else {
+      setData(loadData());
+    }
+  };
+
+  const syncDataToCloud = async (newData: AppData) => {
+    if (isCloudMode && currentWorkspaceId) {
+      await saveWorkspaceData(currentWorkspaceId, newData);
+    }
+    // Always save to localStorage as backup
+    saveData(newData);
   };
 
   const handleAddHabit = (habit: Habit) => {
     addHabit(habit);
-    refreshData();
+    const newData = loadData();
+    setData(newData);
+    syncDataToCloud(newData);
   };
 
   const handleUpdateHabit = (habit: Habit) => {
     updateHabit(habit);
-    refreshData();
+    const newData = loadData();
+    setData(newData);
+    syncDataToCloud(newData);
   };
 
   const handleEditHabit = (habit: Habit) => {
@@ -47,8 +151,34 @@ function App() {
   const handleDeleteHabit = (habitId: string) => {
     if (confirm('Are you sure you want to delete this habit?')) {
       deleteHabit(habitId);
-      refreshData();
+      const newData = loadData();
+      setData(newData);
+      syncDataToCloud(newData);
     }
+  };
+
+  const handleToggleCompletion = () => {
+    // This will be called from HabitGrid after toggle
+    const newData = loadData();
+    setData(newData);
+    syncDataToCloud(newData);
+  };
+
+  const handleWorkspaceChange = async (workspaceId: string) => {
+    setCurrentWorkspaceId(workspaceId);
+    localStorage.setItem('currentWorkspaceId', workspaceId);
+    await loadCloudData(workspaceId);
+  };
+
+  const handleLogout = async () => {
+    if (isSupabaseConfigured()) {
+      await supabase.auth.signOut();
+    }
+    setUserEmail(null);
+    setIsCloudMode(false);
+    setCurrentWorkspaceId(null);
+    localStorage.removeItem('currentWorkspaceId');
+    setData(loadData()); // Load local data
   };
 
   const changeMonth = (delta: number) => {
@@ -118,13 +248,50 @@ function App() {
               </h1>
               <p className="text-gray-500 text-lg">Track your habits and build consistency</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Link
                 to="/showcase"
                 className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition text-sm font-medium"
               >
                 Showcase
               </Link>
+              {isSupabaseConfigured() ? (
+                <>
+                  {userEmail ? (
+                    <>
+                      <button
+                        onClick={() => setShowWorkspaceManager(true)}
+                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition text-sm font-medium"
+                        title="Manage workspaces"
+                      >
+                        {currentWorkspaceId ? 'Workspace' : 'Select Workspace'}
+                      </button>
+                      <button
+                        onClick={handleLogout}
+                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition text-sm font-medium"
+                        title="Sign out"
+                      >
+                        Sign Out
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setShowLogin(true)}
+                      className="px-4 py-2 bg-gray-900 text-white rounded hover:bg-gray-800 transition text-sm font-medium"
+                    >
+                      Sign In
+                    </button>
+                  )}
+                </>
+              ) : (
+                <button
+                  onClick={() => setShowLogin(true)}
+                  className="px-4 py-2 bg-gray-900 text-white rounded hover:bg-gray-800 transition text-sm font-medium"
+                  title="Cloud sync requires Supabase configuration"
+                >
+                  Sign In
+                </button>
+              )}
               <button
                 onClick={handleExportData}
                 className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition text-sm font-medium"
@@ -188,7 +355,7 @@ function App() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           {/* Left Column - Habit Grid */}
           <div className="lg:col-span-2">
-            <HabitGrid data={data} currentMonth={currentMonth} onUpdate={refreshData} />
+            <HabitGrid data={data} currentMonth={currentMonth} onUpdate={handleToggleCompletion} />
             
             {/* Charts */}
             <ProgressChart data={data} currentMonth={currentMonth} />
@@ -269,6 +436,30 @@ function App() {
           habit={viewingHabit}
           data={data}
           onClose={() => setViewingHabit(undefined)} 
+        />
+      )}
+
+      {/* Login Modal */}
+      {showLogin && (
+        <LoginModal
+          onClose={() => setShowLogin(false)}
+          onLoginSuccess={() => {
+            setShowLogin(false);
+            // Only show workspace manager if Supabase is configured and user is logged in
+            if (isSupabaseConfigured() && userEmail) {
+              setShowWorkspaceManager(true);
+            }
+          }}
+        />
+      )}
+
+      {/* Workspace Manager Modal */}
+      {showWorkspaceManager && userEmail && (
+        <WorkspaceManager
+          userEmail={userEmail}
+          currentWorkspaceId={currentWorkspaceId}
+          onWorkspaceChange={handleWorkspaceChange}
+          onClose={() => setShowWorkspaceManager(false)}
         />
       )}
     </div>
